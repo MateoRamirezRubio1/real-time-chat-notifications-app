@@ -6,16 +6,20 @@ from .services.user import get_user_by_email
 
 app = FastAPI()
 
+# Include the routers for user and authentication endpoints
 app.include_router(user.router, prefix="/api/v1/user", tags=["user"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 
 
 @app.get("/")
 async def welcome(db: AsyncSession = Depends(db_dependency)):
-    '''
-    query = select(userModel)
-    result = await db.execute(query)
-    userr = result.scalars().all()
-    '''
-    userr = await get_user_by_email(db, "string")
+    """
+    Welcome endpoint to verify that the API is up and running.
+
+    Args:
+        db (AsyncSession): The asynchronous database session provided by the dependency.
+
+    Returns:
+        dict: A simple message indicating that the API is up and running.
+    """
     return {"message": "Welcome to the User authentication and management API"}

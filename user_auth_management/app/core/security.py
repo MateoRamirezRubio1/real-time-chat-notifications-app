@@ -9,19 +9,50 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import SQLAlchemyError
 
-SECRET_KEY = settings.SECRET_KEY
-ALGORITHM = settings.ALGORITHM
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+# Configuration for JWT tokens and password hashing
+SECRET_KEY = (
+    settings.SECRET_KEY
+)  # The secret key used for encoding and decoding JWT tokens
+ALGORITHM = settings.ALGORITHM  # The algorithm used for hashing (e.g., HS256)
+ACCESS_TOKEN_EXPIRE_MINUTES = (
+    settings.ACCESS_TOKEN_EXPIRE_MINUTES
+)  # Token expiration time in minutes
 
+# Password hashing context for bcrypt
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def get_password_hash(password: str) -> str:
+    """
+    Hash a plain password using bcrypt.
+
+    Args:
+    - password (str): The plain password to be hashed.
+
+    Returns:
+    - str: The hashed password.
+
+    Raises:
+    - HTTPException: If there is an error during the hashing process.
+    """
     hashed_password = bcrypt_context.hash(password)
     return hashed_password
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verify a plain password against a hashed password.
+
+    Args:
+    - plain_password (str): The plain password to verify.
+    - hashed_password (str): The hashed password to verify against.
+
+    Returns:
+    - bool: True if the password is correct, False otherwise.
+
+    Raises:
+    - HTTPException: If there is an error during the verification process.
+    """
     try:
         is_correct_password = bcrypt_context.verify(plain_password, hashed_password)
         return is_correct_password
@@ -33,6 +64,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    """
+    Create a new access token.
+
+    Args:
+    - data (dict): The payload data for the token.
+    - expires_delta (timedelta | None): Optional expiration time for the token.
+
+    Returns:
+    - str: The encoded JWT token.
+
+    Raises:
+    - HTTPException: If there is an error during the token creation process.
+    """
     to_encode = data.copy()
     expire = datetime.utcnow() + (
         expires_delta
@@ -52,6 +96,18 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 
 
 def decode_access_token(token: str) -> dict:
+    """
+    Decode an access token and return the payload.
+
+    Args:
+    - token (str): The JWT token to decode.
+
+    Returns:
+    - dict: The decoded payload of the token.
+
+    Raises:
+    - HTTPException: If the token is invalid or decoding fails.
+    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
@@ -64,7 +120,16 @@ def decode_access_token(token: str) -> dict:
 
 
 async def add_token_to_revoked_list(db: AsyncSession, token: str):
-    """Agrega un token a la lista de tokens revocados."""
+    """
+    Add a token to the revoked tokens list.
+
+    Args:
+    - db (AsyncSession): The database session.
+    - token (str): The token to revoke.
+
+    Raises:
+    - HTTPException: If there is an error adding the token to the revoked list.
+    """
     revoked_token = RevokedToken(token=token)
     db.add(revoked_token)
     try:
@@ -78,13 +143,25 @@ async def add_token_to_revoked_list(db: AsyncSession, token: str):
 
 
 async def check_token_revoked(db: AsyncSession, token: str) -> bool:
-    """Verifica si un token está en la lista de tokens revocados."""
+    """
+    Check if a token is in the revoked tokens list.
+
+    Args:
+    - db (AsyncSession): The database session.
+    - token (str): The token to check.
+
+    Returns:
+    - bool: True if the token is revoked, False otherwise.
+
+    Raises:
+    - HTTPException: If there is an error checking the token's status.
+    """
     try:
         query = select(RevokedToken).where(RevokedToken.token == token)
         result = await db.execute(query)
         return True if result.scalars().first() else None
-    except Exception as e:
+    except SQLAlchemyError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error checking if token is revoked",
+            detail="Error checking if token is revoked" + e,
         )
